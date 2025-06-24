@@ -13,7 +13,7 @@ export const syncUserFromClerk = async (req: Request, res: Response) => {
   }
 
   try {
-    const existingUser = await prisma.user.findUnique({
+    const existingUser = await prisma.user.findFirst({
       where: { clerkId }
     })
 
