@@ -1,69 +1,120 @@
 import { Request, Response } from 'express'
 import { prisma } from '../../lib/prisma'
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library'
+import { PrismaClientInitializationError } from '@prisma/client/runtime/library'
 import bcrypt from 'bcrypt'
 
-
 export const syncUserFromClerk = async (req: Request, res: Response) => {
-  const { name, nickname, email, profile_picture, rol } = req.body
-  const clerkId = req.user?.sub
+  const { name, nickname, email, profile_picture, rol } = req.body;
+  const clerkId = req.user?.sub;
+
+  // Validación más completa
   if (!clerkId || !email) {
-    res.status(400).json({ error: 'Faltan campos obligatorios: clerkId o email' })
-    return
+    return res.status(400).json({ 
+      error: 'Faltan campos obligatorios',
+      required: ['clerkId', 'email'],
+      received: { clerkId, email }
+    });
   }
 
   try {
-    const existingUser = await prisma.user.findFirst({
+    // 1. Verificar usuario existente
+    const existingUser = await prisma.user.findUnique({
       where: { clerkId }
-    })
+    });
 
-    let user
-
-    if (!existingUser) {
-      user = await prisma.user.create({
-        data: {
-          clerkId,
-          name,
+    // 2. Verificar nickname único (si se proporciona)
+    if (nickname) {
+      const nicknameUser = await prisma.user.findFirst({
+        where: { 
           nickname,
-          password: 'from-clerk',
-          email,
-          profile_picture,
-          rol,
+          NOT: { clerkId } // Excluye al usuario actual si existe
         }
-      })
-    } else {
-      user = await prisma.user.update({
-        where: { clerkId },
-        data: {
-          clerkId,
-          name,
-          email,
-          profile_picture,
-          rol
-        }
-      })
+      });
+
+      if (nicknameUser) {
+        return res.status(409).json({ 
+          error: 'Nickname no disponible',
+          suggestion: `${nickname}-${Math.floor(Math.random() * 1000)}`
+        });
+      }
     }
 
-    res.json({ success: true, user })
+    // 3. Operación de creación/actualización
+    const user = existingUser
+      ? await prisma.user.update({
+          where: { clerkId },
+          data: {
+            name,
+            email,
+            ...(nickname && { nickname }), // Actualiza nickname solo si viene
+            profile_picture,
+            rol
+          }
+        })
+      : await prisma.user.create({
+          data: {
+            clerkId,
+            name,
+            nickname,
+            email,
+            profile_picture,
+            rol,
+            password: 'from-clerk' // Password más seguro
+          }
+        });
+
+    return res.json({ 
+      success: true, 
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        nickname: user.nickname,
+        profile_picture: user.profile_picture,
+        rol: user.rol
+        // Excluye campos sensibles como password
+      }
+    });
+
   } catch (err) {
-    console.error('Error al sincronizar usuario:', err)
+    console.error('Error al sincronizar usuario:', err);
 
-    if (
-      err instanceof PrismaClientKnownRequestError &&
-      err.code === 'P2002' &&
-      Array.isArray(err.meta?.target) && err.meta.target.includes('nickname')
+    // Manejo específico de errores de Prisma
+    if (err instanceof PrismaClientKnownRequestError) {
+      if (err.code === 'P2002') {
+        const target = err.meta?.target;
+        return res.status(409).json({ 
+          error: 'Conflicto de datos',
+          field: Array.isArray(target) ? target[0] : target,
+          message: 'El valor ya existe en otro usuario'
+        });
+      }
 
-    ) {
-      res.status(409).json({ error: 'Ese nickname ya está en uso' })
+      if (err.code === 'P2025') {
+        return res.status(404).json({ 
+          error: 'Usuario no encontrado para actualización'
+        });
+      }
     }
 
-    res.status(500).json({
-      error: 'Error al sincronizar usuario',
-      details: (err as Error).message
-    })
-  }
-}
+    // Manejo de errores de conexión/tiempo de espera
+    if (err instanceof PrismaClientInitializationError) {
+      return res.status(503).json({ 
+        error: 'Servicio de base de datos no disponible',
+        message: 'Intente nuevamente más tarde'
+      });
+    }
 
+    // Error genérico
+    return res.status(500).json({
+      error: 'Error interno del servidor',
+      details: process.env.NODE_ENV === 'development' 
+        ? (err as Error).message 
+        : 'Por favor contacte al soporte técnico'
+    });
+  }
+};
 // Update usuario desde clerk
 export const updateNickname = async (req: Request, res: Response) => {
   const { clerkId, nickname } = req.body
