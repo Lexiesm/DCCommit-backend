@@ -10,11 +10,14 @@ export const syncUserFromClerk = async (req: Request, res: Response) => {
 
   // Validación más completa
   if (!clerkId || !email) {
-    return res.status(400).json({ 
+    res.status(400).json({ 
       error: 'Faltan campos obligatorios',
       required: ['clerkId', 'email'],
       received: { clerkId, email }
+
     });
+    return
+  
   }
 
   try {
@@ -33,7 +36,7 @@ export const syncUserFromClerk = async (req: Request, res: Response) => {
       });
 
       if (nicknameUser) {
-        return res.status(409).json({ 
+        res.status(409).json({ 
           error: 'Nickname no disponible',
           suggestion: `${nickname}-${Math.floor(Math.random() * 1000)}`
         });
@@ -64,7 +67,7 @@ export const syncUserFromClerk = async (req: Request, res: Response) => {
           }
         });
 
-    return res.json({ 
+    res.json({ 
       success: true, 
       user: {
         id: user.id,
@@ -84,7 +87,7 @@ export const syncUserFromClerk = async (req: Request, res: Response) => {
     if (err instanceof PrismaClientKnownRequestError) {
       if (err.code === 'P2002') {
         const target = err.meta?.target;
-        return res.status(409).json({ 
+        res.status(409).json({ 
           error: 'Conflicto de datos',
           field: Array.isArray(target) ? target[0] : target,
           message: 'El valor ya existe en otro usuario'
@@ -92,7 +95,7 @@ export const syncUserFromClerk = async (req: Request, res: Response) => {
       }
 
       if (err.code === 'P2025') {
-        return res.status(404).json({ 
+        res.status(404).json({ 
           error: 'Usuario no encontrado para actualización'
         });
       }
@@ -100,14 +103,14 @@ export const syncUserFromClerk = async (req: Request, res: Response) => {
 
     // Manejo de errores de conexión/tiempo de espera
     if (err instanceof PrismaClientInitializationError) {
-      return res.status(503).json({ 
+      res.status(503).json({ 
         error: 'Servicio de base de datos no disponible',
         message: 'Intente nuevamente más tarde'
       });
     }
 
     // Error genérico
-    return res.status(500).json({
+    res.status(500).json({
       error: 'Error interno del servidor',
       details: process.env.NODE_ENV === 'development' 
         ? (err as Error).message 
