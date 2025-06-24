@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id              Int            @id @default(autoincrement())
+  clerkId         String         @unique
+  name            String
+  nickname        String         @unique
+  password        String
+  profile_picture String?
+  email           String         @unique
+  rol             Role           @default(USER)
+  comments        Comment[]
+  moddedPosts     Post[]         @relation("ModderPosts")
+  posts           Post[]         @relation("UserPosts")
+  modReports      Report[]       @relation("ReportModder")
+  reports         Report[]       @relation("UserReports")
+  verifications   Verification[] @relation("ModderVerifications")
+
+  @@map("User")
+}
+
+model Post {
+  id           Int           @id @default(autoincrement())
+  title        String
+  content      String
+  date         DateTime      @default(now())
+  status       String        @default("pending")
+  likes        Int           @default(0)
+  userId       Int
+  modderId     Int
+  comments     Comment[]
+  modder       User          @relation("ModderPosts", fields: [modderId], references: [id])
+  user         User          @relation("UserPosts", fields: [userId], references: [id])
+  labels       PostLabel[]
+  reports      Report[]
+  verification Verification?
+
+  @@map("Post")
+}
+
+model Label {
+  id    Int         @id @default(autoincrement())
+  name  String      @unique
+  posts PostLabel[]
+
+  @@map("Label")
+}
+
+model PostLabel {
+  postId  Int
+  labelId Int
+  label   Label @relation(fields: [labelId], references: [id])
+  post    Post  @relation(fields: [postId], references: [id])
+
+  @@id([postId, labelId])
+  @@map("PostLabel")
+}
+
+model Verification {
+  id                 Int      @id @default(autoincrement())
+  date               DateTime @default(now())
+  statusVerification String
+  reasonAnswer       String?
+  postId             Int      @unique
+  modderId           Int
+  modder             User     @relation("ModderVerifications", fields: [modderId], references: [id])
+  post               Post     @relation(fields: [postId], references: [id])
+
+  @@map("Verification")
+}
+
+model Report {
+  id             Int      @id @default(autoincrement())
+  targetId       Int
+  targetType     String
+  reason         String
+  date           DateTime @default(now())
+  modderResponse String?
+  userId         Int
+  postId         Int?
+  commentId      Int?
+  modderId       Int?
+  comment        Comment? @relation(fields: [commentId], references: [id])
+  modder         User?    @relation("ReportModder", fields: [modderId], references: [id])
+  post           Post?    @relation(fields: [postId], references: [id])
+  user           User     @relation("UserReports", fields: [userId], references: [id])
+
+  @@map("Report")
+}
+
+model Comment {
+  id      Int      @id @default(autoincrement())
+  content String
+  date    DateTime @default(now())
+  postId  Int
+  userId  Int
+  post    Post     @relation(fields: [postId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  reports Report[]
+
+  @@map("Comment")
+}
+
+enum Role {
+  ADMIN
+  USER
+  MODERATOR
+}

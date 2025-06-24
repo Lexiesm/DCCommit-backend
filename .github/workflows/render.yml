@@ -1,0 +1,40 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v2
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Export env variables
+      run: |
+        echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" >> $GITHUB_ENV
+        echo "DIRECT_URL=${{ secrets.DIRECT_URL }}" >> $GITHUB_ENV
+
+#    - name: Mark migration as applied
+#      run: npx prisma migrate resolve --applied 20250617005411_init_clean
+        
+    - name: Prisma migrate deploy
+      run: npx prisma migrate deploy
+
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Render
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.MY_RENDER_SERVICE_ID }}
+          api-key: ${{ secrets.MY_RENDER_API_KEY }}

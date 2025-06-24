@@ -1,0 +1,20 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const post_routes_1 = __importDefault(require("./api/routes/post.routes"));
+const verification_routes_1 = __importDefault(require("./api/routes/verification.routes"));
+const comment_routes_1 = __importDefault(require("./api/routes/comment.routes"));
+const report_routes_1 = __importDefault(require("./api/routes/report.routes"));
+const test_routes_1 = __importDefault(require("./api/routes/test.routes"));
+const user_routes_1 = __importDefault(require("./api/routes/user.routes"));
+const router = express_1.default.Router();
+router.use('/posts', post_routes_1.default);
+router.use('/users', user_routes_1.default);
+router.use('/verifications', verification_routes_1.default);
+router.use('/comments', comment_routes_1.default);
+router.use('/reports', report_routes_1.default);
+router.use('/test', test_routes_1.default);
+exports.default = router;
